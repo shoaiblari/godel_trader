@@ -1,0 +1,23 @@
+# secrets
+key.env
+*.env
+.env
+
+# python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# editor / OS
+*~
+\#*\#
+.#*
+desktop.ini
+.DS_Store
+
+# private course material (grades / feedback)
+notes/submission_*.pdf
+
+# run artifacts
+logs/
+*.log

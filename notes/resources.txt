@@ -1,0 +1,8 @@
+Proposal help from Claude on the project:
+https://claude.ai/share/84b5ee22-e220-46f3-abfe-cc78dca74dbd
+
+Course: CS 329Z: Engineering AI Agents
+        Stanford / Fall 2026
+        https://cs329z.stanford.edu/
+
+RDAgent's Documenation https://rdagent.readthedocs.io/en/latest/index.html
