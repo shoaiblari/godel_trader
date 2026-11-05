@@ -1,7 +1,9 @@
-% CS 329Z Midway Report -- compile with the ICLR 2026 template (Overleaf: "ICLR 2026 Conference Template").
-% Drop iclr2026_conference.sty / .bst, fancyhdr.sty and natbib.sty next to this file, or use the same
-% template files you used for the proposal.
+% CS 329Z Midway Report, ICLR 2026 template (style files are in this directory).
+% Build locally:   tectonic midway_report.tex      (conda install -c conda-forge tectonic)
+% or in Overleaf:  upload this directory; pdfLaTeX works too.
+% The [T1]{fontenc} line is needed under XeTeX/tectonic so that the times package takes effect.
 \documentclass{article}
+\usepackage[T1]{fontenc}
 \usepackage{iclr2026_conference,times}
 \usepackage{hyperref}
 \usepackage{url}
@@ -11,17 +13,19 @@
 
 \iclrfinalcopy % remove to anonymise
 
-\title{G\"odel Trader: Separating Genuine Self-Improvement from\\
-Evaluator Exploitation in Trading-Strategy Research\\
-{\large CS 329Z Midway Report}}
+\title{G\"odel Trader:\\
+Separating Genuine Self-Improvement\\
+from Evaluator Exploitation\\
+in Trading-Strategy Research}
 
 \author{Mohammad Shoaib Lari\\
 Stanford University\\
-\texttt{shoaiblari3@gmail.com}\\
+\textit{CS 329Z Midway Report, November 6, 2026}\\
 Code: \url{https://github.com/shoaiblari/godel_trader}}
 
 \begin{document}
 \maketitle
+\lhead{CS 329Z Midway Report}
 
 \section{Research Questions}
 
@@ -155,9 +159,10 @@ measured: every edit is logged with its sandbox gain, its test-window gain
 once the run is over, and the audit label.
 
 \paragraph{Baselines and ablations.} R\&D-Agent(Q)'s factor loop, frozen,
-on the same data and backtest (conda runtime, no Docker). A non-self-modifying
-G\"odel Agent in which \texttt{action\_adjust\_logic} is disabled, so the
-planner can only iterate on factor code. Both at the same token budget.
+on the same data and backtest (conda runtime, no Docker), and a
+G\"odel Agent with self-modification disabled (no
+\texttt{action\_adjust\_logic}), so the planner can only iterate on factor
+code. Both at the same token budget.
 
 \paragraph{Models.} The planner will be run with o3 for the main results and
 with DeepSeek for development and a cost ablation; R\&D-Agent supports

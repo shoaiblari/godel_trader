@@ -149,9 +149,19 @@ godel_agent/               patched copy of Gödel Agent, MGSM data, MIT license 
 runs/                      evidence: three full run logs, SUMMARY.md, and the run-3 code dump
 scripts/summarize_run.py   log -> Markdown tables (no dependencies beyond Python 3)
 notes/                     proposal, course project description, the two papers
-report/midway/             midway report source (ICLR template)
+report/midway/             midway report: midway_report.pdf, .tex source, ICLR 2026 style files
 video/shot_list.md         shot list for the midpoint demo video
 ```
+
+## Building the midway report
+
+```bash
+conda install -n g -c conda-forge tectonic   # once
+cd report/midway && tectonic midway_report.tex
+```
+
+The committed `midway_report.pdf` was built this way. The `.tex` also compiles
+with pdfLaTeX / Overleaf; the ICLR 2026 style files are in the same directory.
 
 ## Roadmap to the final report
 
