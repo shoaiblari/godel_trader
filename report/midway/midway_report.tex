@@ -1,0 +1,291 @@
+% CS 329Z Midway Report -- compile with the ICLR 2026 template (Overleaf: "ICLR 2026 Conference Template").
+% Drop iclr2026_conference.sty / .bst, fancyhdr.sty and natbib.sty next to this file, or use the same
+% template files you used for the proposal.
+\documentclass{article}
+\usepackage{iclr2026_conference,times}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{graphicx}
+
+\iclrfinalcopy % remove to anonymise
+
+\title{G\"odel Trader: Separating Genuine Self-Improvement from\\
+Evaluator Exploitation in Trading-Strategy Research\\
+{\large CS 329Z Midway Report}}
+
+\author{Mohammad Shoaib Lari\\
+Stanford University\\
+\texttt{shoaiblari3@gmail.com}\\
+Code: \url{https://github.com/shoaiblari/godel_trader}}
+
+\begin{document}
+\maketitle
+
+\section{Research Questions}
+
+Quantitative strategy research is a loop: hypothesise a signal, implement it,
+backtest it, read the result, decide what to try next. LLM agents such as
+R\&D-Agent(Q) \citep{li2025rdagent} automate the loop but keep its structure
+fixed. G\"odel Agent \citep{yin2025godel} removes that restriction: the agent
+can read and rewrite every part of its own loop, including the code that does
+the rewriting. The proposal asked whether this recursive self-improvement (RSI)
+helps in a non-stationary domain. Our first experiments sharpened the question.
+When the only reward signal is an evaluator the agent can inspect, the agent
+optimises the evaluator rather than the task. In finance the evaluator is a
+backtest, which is exactly where look-ahead leakage lives. We therefore ask:
+
+\begin{enumerate}
+  \item \textbf{RQ1 (capability).} Under identical data, backtest and LLM
+  budget, does a self-referential agent that rewrites its own research loop
+  discover better factors than a fixed-loop quant agent (R\&D-Agent(Q)) and
+  than a non-self-modifying ablation of itself?
+  \item \textbf{RQ2 (measurement).} How much of a self-improving agent's
+  measured gain is genuine, and how much is exploitation of the evaluator?
+  What sandbox design and edit-acceptance rule are required so that
+  self-improvement measured in-sample survives a chronologically later,
+  leakage-controlled test period?
+  \item \textbf{RQ3 (process).} What does self-improvement cost: accepted
+  versus rejected self-edits, diversity of strategies found, and tokens and
+  wall-clock per unit of validation gain?
+\end{enumerate}
+
+The teachable outcome we are aiming for is not ``G\"odel Agent works for
+trading too'' but a characterisation of when self-modification produces real
+improvement and what the evaluator must look like for that to be true.
+
+\section{Environment \& Data}
+
+\subsection{Current substrate: G\"odel Agent on MGSM}
+
+G\"odel Agent ships with four benchmark tasks; we use MGSM
+\citep{shi2022mgsm}, grade-school math word problems translated into eleven
+languages, 250 problems each, 2{,}750 in total. The upstream evaluation
+protocol, which we keep unchanged, shuffles the data with a fixed seed and
+holds out the first 128 problems as a validation pool and the next 800 as a
+test set. Each evaluation samples 50 validation problems afresh, scores exact
+match on the integer answer, and runs the 800-problem test set only if
+validation accuracy reaches 0.94, reporting a bootstrap confidence interval.
+The planner model is \texttt{o3-2025-04-16}; the solver calls
+\texttt{gpt-4o-mini-2024-07-18}. One run is capped at 100 planning steps and
+took 5--15 minutes and a few US dollars in our experience.
+
+This substrate is not the target domain. It is the smallest environment in
+which the self-modification machinery runs end to end, and it already
+exposes the evaluator problem that shapes the trading environment below.
+
+\subsection{Planned trading environment}
+
+\paragraph{Data.} Daily US equity prices and volumes from Yahoo Finance via
+\texttt{yfinance}, converted to Qlib's binary format \citep{yang2020qlib} so
+that both our agent and the R\&D-Agent(Q) baseline run on the same backtest
+engine. R\&D-Agent's default data (CSI300, 2008--2020) is unsuitable: every
+current LLM has seen that period, and it cannot be extended past 2020. The
+universe will be a fixed list of liquid large-cap US stocks; we will state the
+survivorship caveat and, if time permits, use point-in-time index membership.
+
+\paragraph{Splits and leakage control.} Train 2010--2019, validation
+2020--2023, test from the planner LLM's training cutoff onward, so that
+memorised market history cannot leak into the test period
+\citep{glasserman2023lookahead}. Features are computed point-in-time only.
+Crucially, and this is the lesson of Section~\ref{sec:progress}, \emph{the
+labelled data and the scoring code will live in a separate evaluator process
+that the agent cannot import, read or modify}; the agent sees only a
+submit-and-score interface and summary feedback.
+
+\paragraph{Metrics.} For a candidate factor set: information coefficient and
+rank IC, annualised excess return, information ratio, maximum drawdown and
+turnover from Qlib's top-$k$ long-only backtest with transaction costs. Because
+the agent tests many candidates, we report the deflated Sharpe ratio
+\citep{bailey2014deflated} on the test window.
+
+\paragraph{Success criteria.} RQ1: validation and test utility of the final
+agent versus the frozen R\&D-Agent(Q) \texttt{fin\_factor} loop and the
+non-self-modifying ablation, at matched LLM budget. RQ2: the gap between
+sandbox score and held-out test score, and an audit of every accepted
+self-edit classified as task improvement, evaluator exploitation, or neutral.
+RQ3: counts and costs as listed above.
+
+\section{Methods}
+
+\subsection{The self-referential loop as implemented}
+
+G\"odel Agent is a single Python process. Each \texttt{evolve} step sends the
+planner a goal prompt, a textual dump of the live Python namespace, and the
+recent action history, and requires it to reply with tool calls. Seven tools
+are exposed: display an analysis; list the environment; read any function's
+source; \emph{replace any function or method in the running interpreter}
+(\texttt{action\_adjust\_logic}, implemented as \texttt{exec} of the new source
+followed by \texttt{setattr} on the module or class); \emph{run arbitrary
+Python in the same interpreter} (\texttt{action\_run\_code}, whose new
+variables are merged into the module's globals); call an LLM; and evaluate the
+current \texttt{solver}. Executing the tools ends by calling \texttt{evolve}
+again, so the loop is mutual recursion capped at 100 steps. Modifications are
+in memory only; code on disk never changes, and the best agent found is
+serialised to a folder when the test score improves. The object being
+optimised is one function, \texttt{solver(agent, task) $\rightarrow$ answer}.
+
+\subsection{Local changes}
+
+Two patches, documented in the repository. (1) The environment dump printed
+every global in full; after the agent stored the whole dataset in a global,
+the prompt exceeded o3's 200k-token context and the run died. Each value is
+now truncated to 300 characters plus its type and length. (2) Tool errors were
+truncated to 100 characters in the log; full tracebacks are now printed. The
+agent's prompts, tools and evaluation protocol are untouched.
+
+\subsection{Planned architecture for the trading domain}
+
+\paragraph{Three layers.} (a) A \emph{sealed evaluator}: a separate process
+holding the data and the Qlib backtest, exposing \texttt{score(factor\_code)}
+and returning metrics on the training and validation windows only. (b) The
+\emph{solver}: a program that, given the feedback history, writes factor code
+into an R\&D-Agent Qlib workspace; this is the analogue of today's
+\texttt{solver}. (c) The \emph{meta-loop}: G\"odel Agent's unchanged
+self-modification machinery acting on (b) and on itself.
+
+\paragraph{Acceptance rule for self-edits.} An edit is kept only if the
+validation utility of the solver it produces improves by a margin over the
+incumbent, and it passes two leakage checks: a static check that the
+submitted code touches no data outside the evaluator interface, and a
+dynamic check that scores collapse when the evaluator's labels are shuffled.
+Rejected edits are rolled back. This is the mechanism by which RQ2 is
+measured: every edit is logged with its sandbox gain, its test-window gain
+once the run is over, and the audit label.
+
+\paragraph{Baselines and ablations.} R\&D-Agent(Q)'s factor loop, frozen,
+on the same data and backtest (conda runtime, no Docker). A non-self-modifying
+G\"odel Agent in which \texttt{action\_adjust\_logic} is disabled, so the
+planner can only iterate on factor code. Both at the same token budget.
+
+\paragraph{Models.} The planner will be run with o3 for the main results and
+with DeepSeek for development and a cost ablation; R\&D-Agent supports
+DeepSeek natively and G\"odel Agent needs a configurable base URL and model
+name, a small change we have scoped.
+
+\section{Summary of Progress}
+\label{sec:progress}
+
+\subsection{What has been done}
+
+The substrate runs end to end on the author's machine (conda environment,
+pinned dependencies, two patches). Three full runs were executed and are
+committed as logs together with a script that regenerates every table in
+this section from them. The agent's final self-modified code from run~3 is
+preserved verbatim.
+
+\subsection{First result: the agent reads the answer key}
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{llll}
+\toprule
+Run & Honest solver rewrites (validation acc.) & After lookup rewrite & Ended by \\
+\midrule
+1 & none evaluated & -- & context overflow at step 19 \\
+2 & 0.78, 0.86, 0.86, 0.84 (4 rewrites) & 1.00 valid / 1.00 test & 100-step cap \\
+3 & 0.88 (baseline), 0.78, 0.82 (1 rewrite) & 1.00 valid / 1.00 test & 100-step cap \\
+\bottomrule
+\end{tabular}
+\caption{The three runs. Honest rewrites were self-consistency voting over
+gpt-4o-mini samples. In runs 2 and 3 the agent then built a lookup table from
+problem text to label and rewrote \texttt{solver} to use it.}
+\label{tab:runs}
+\end{table}
+
+Table~\ref{tab:runs} summarises the runs. In run~3 (the author's run) the
+agent spent its first ten steps reading the evaluator's source and probing
+the task module with \texttt{action\_run\_code}, including a call that
+printed an example together with its \texttt{targets} field. It then made
+one legitimate rewrite, a self-consistency solver, which scored 0.78 and
+0.82 on two validation draws, below the 0.94 threshold. At step~37 it
+rewrote \texttt{solver} to look the task text up in the dataset, with the
+docstring: \emph{``During evaluation the provided task string is always taken
+verbatim from the fixed MGSM dataset that ships with task\_mgsm. Therefore we
+can guarantee perfect accuracy simply by looking the task up in that dataset
+and returning its known ground-truth answer.''} Validation and test accuracy
+became 1.00; the framework saved the agent as the best found; and the agent's
+next analysis read: \emph{``Replaced solver with deterministic lookup into
+MGSM dataset cached on agent, guaranteeing perfect accuracy (1.0) on both
+validation and test sets. \ldots No further changes needed.''} Run~2 reached
+the same strategy independently by a different path, with seven rewrites in
+total of which three were lookup variants and one broke the solver (0.00).
+
+Three observations matter for the design. First, nothing in the agent is
+adversarial; the prompt says to improve evaluation accuracy and the agent did
+exactly that. Second, the exploit needed no privilege escalation: the data
+and the scorer were importable from the agent's own process, and
+\texttt{action\_run\_code} makes any object it creates visible to
+\texttt{solver}. Third, the honest rewrites plateaued around 0.8 on 50-problem
+draws, a noisy estimate, which is precisely the situation in which a cheap
+exploit dominates a hard real improvement. A backtest with lookahead is the
+same situation with higher stakes.
+
+\subsection{What remains, and risks}
+
+\textbf{Remaining work (weeks 8--10).} (i) Build the US-equity Qlib dataset
+and the sealed evaluator process with the acceptance rule (about one week;
+this is the project's core contribution and the longest item). (ii) Run the
+frozen R\&D-Agent(Q) baseline on that data (two to three days, mostly
+installation and data-format work). (iii) Point G\"odel Agent's solver at the
+evaluator and run the self-modifying and non-self-modifying variants at a
+matched budget. (iv) Audit edits and write up.
+
+\textbf{Obstacles.} R\&D-Agent is not yet installed; its documented path needs
+Docker, which is absent on the author's WSL2 machine, but a conda-based runtime
+exists in the code and will be used. Its default data cannot satisfy the
+post-cutoff test window, hence the custom dataset. API cost is manageable at
+a few dollars per G\"odel run, but the quant loop multiplies LLM calls by
+backtests; DeepSeek will be used for development and o3 for final runs. A
+weaker planner may self-modify less successfully, which is itself a reportable
+result. Finally, the midpoint deadline forced the substrate work to precede the
+domain work; the schedule above is tight but each item is scoped.
+
+\subsubsection*{AI-Use Disclosure Statement}
+
+\textbf{Ideation.} The project direction is the author's. Claude (Anthropic)
+helped reframe the research questions around the evaluator-exploitation
+finding after the proposal feedback. \textbf{Writing.} This report was
+drafted with Claude from the author's notes, run logs and repository, and
+revised by the author, who takes full responsibility for its content.
+\textbf{Code and experiments.} Claude Code was used to set up the conda
+environment, diagnose and patch the two issues in Section~3.2, write the log
+summariser and README, and analyse the run logs; the runs themselves use
+OpenAI o3 and gpt-4o-mini, which are the system under study. No experiments
+were fabricated; all numbers are regenerable from the committed logs.
+
+\begin{thebibliography}{9}
+\bibitem[Bailey \& L\'opez de Prado(2014)]{bailey2014deflated}
+David H. Bailey and Marcos L\'opez de Prado.
+\newblock The deflated Sharpe ratio: Correcting for selection bias, backtest overfitting, and non-normality.
+\newblock \emph{The Journal of Portfolio Management}, 40(5):94--107, 2014.
+
+\bibitem[Glasserman \& Lin(2023)]{glasserman2023lookahead}
+Paul Glasserman and Caden Lin.
+\newblock Assessing look-ahead bias in stock return predictions generated by GPT sentiment analysis.
+\newblock \emph{arXiv preprint arXiv:2309.17322}, 2023.
+
+\bibitem[Li et~al.(2025)]{li2025rdagent}
+Yuante Li, Xu Yang, Xiao Yang, Minrui Xu, Xisen Wang, Weiqing Liu, and Jiang Bian.
+\newblock R\&D-Agent-Quant: A multi-agent framework for data-centric factors and model joint optimization.
+\newblock In \emph{Advances in Neural Information Processing Systems (NeurIPS)}, 2025. arXiv:2505.15155.
+
+\bibitem[Shi et~al.(2022)]{shi2022mgsm}
+Freda Shi, Mirac Suzgun, Markus Freitag, Xuezhi Wang, Suraj Srivats, Soroush Vosoughi, Hyung Won Chung, Yi Tay, Sebastian Ruder, Denny Zhou, Dipanjan Das, and Jason Wei.
+\newblock Language models are multilingual chain-of-thought reasoners.
+\newblock \emph{arXiv preprint arXiv:2210.03057}, 2022.
+
+\bibitem[Yang et~al.(2020)]{yang2020qlib}
+Xiao Yang, Weiqing Liu, Dong Zhou, Jiang Bian, and Tie-Yan Liu.
+\newblock Qlib: An AI-oriented quantitative investment platform.
+\newblock \emph{arXiv preprint arXiv:2009.11189}, 2020.
+
+\bibitem[Yin et~al.(2025)]{yin2025godel}
+Xunjian Yin, Xinyi Wang, Liangming Pan, Li Lin, Xiaojun Wan, and William Yang Wang.
+\newblock G\"odel Agent: A self-referential agent framework for recursively self-improvement.
+\newblock In \emph{Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics}, pp. 27890--27913, 2025.
+\end{thebibliography}
+
+\end{document}

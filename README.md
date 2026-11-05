@@ -149,6 +149,8 @@ godel_agent/               patched copy of Gödel Agent, MGSM data, MIT license 
 runs/                      evidence: three full run logs, SUMMARY.md, and the run-3 code dump
 scripts/summarize_run.py   log -> Markdown tables (no dependencies beyond Python 3)
 notes/                     proposal, course project description, the two papers
+report/midway/             midway report source (ICLR template)
+video/shot_list.md         shot list for the midpoint demo video
 ```
 
 ## Roadmap to the final report
