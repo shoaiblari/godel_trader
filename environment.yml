@@ -1,0 +1,21 @@
+# Conda environment for the Godel_Agent repo (~/w/Godel_Agent)
+#   create:   conda env create -f ~/exe/godel_env.yml
+#   update:   conda env update -f ~/exe/godel_env.yml --prune
+#   use:      conda activate g
+name: g
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  # from requirements.txt
+  - numpy
+  - pandas
+  - tqdm
+  - backoff
+  # used by src/task_drop.py but missing from requirements.txt
+  - scipy
+  - pip:
+      - openai==1.2.0
+      - httpx<0.28   # openai 1.2.0 passes the removed "proxies" kwarg to newer httpx
