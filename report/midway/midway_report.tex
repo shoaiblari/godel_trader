@@ -20,8 +20,10 @@ in Trading-Strategy Research}
 
 \author{Mohammad Shoaib Lari\\
 Stanford University\\
+\texttt{shoaiblari@gmail.com}\\
 \textit{CS 329Z Midway Report, November 6, 2026}\\
-Code: \url{https://github.com/shoaiblari/godel_trader}}
+Code: \url{https://github.com/shoaiblari/godel_trader}\\
+Video: \url{https://youtu.be/YO-fM8ethbI}}
 
 \begin{document}
 \maketitle
@@ -98,8 +100,10 @@ labelled data and the scoring code will live in a separate evaluator process
 that the agent cannot import, read or modify}; the agent sees only a
 submit-and-score interface and summary feedback.
 
-\paragraph{Metrics.} For a candidate factor set: information coefficient and
-rank IC, annualised excess return, information ratio, maximum drawdown and
+\paragraph{Metrics.} For a candidate factor set: the information coefficient
+(IC, the cross-sectional correlation between the factor's predicted and
+realised next-period returns) and its rank version (rank IC), annualised
+excess return, information ratio, maximum drawdown and
 turnover from Qlib's top-$k$ long-only backtest with transaction costs. Because
 the agent tests many candidates, we report the deflated Sharpe ratio
 \citep{bailey2014deflated} on the test window.
@@ -151,10 +155,15 @@ self-modification machinery acting on (b) and on itself.
 
 \paragraph{Acceptance rule for self-edits.} An edit is kept only if the
 validation utility of the solver it produces improves by a margin over the
-incumbent, and it passes two leakage checks: a static check that the
-submitted code touches no data outside the evaluator interface, and a
-dynamic check that scores collapse when the evaluator's labels are shuffled.
-Rejected edits are rolled back. This is the mechanism by which RQ2 is
+incumbent, and it passes two leakage checks. The first is static: the
+submitted code is inspected to confirm it reads no data outside the evaluator
+interface. The second is a shuffle test: the evaluator re-scores the same
+code on a copy of the data in which the future returns have been randomly
+permuted across stocks and dates. A factor that genuinely predicts returns
+should score near zero on the shuffled data; a score that stays high means
+the code is obtaining the answers from somewhere other than the features,
+as the MGSM lookup solver did, and the edit is rejected. Rejected edits are
+rolled back. This is the mechanism by which RQ2 is
 measured: every edit is logged with its sandbox gain, its test-window gain
 once the run is over, and the audit label.
 
@@ -191,7 +200,7 @@ Run & Honest solver rewrites (validation acc.) & After lookup rewrite & Ended by
 \midrule
 1 & none evaluated & -- & context overflow at step 19 \\
 2 & 0.78, 0.86, 0.86, 0.84 (4 rewrites) & 1.00 valid / 1.00 test & 100-step cap \\
-3 & 0.88 (baseline), 0.78, 0.82 (1 rewrite) & 1.00 valid / 1.00 test & 100-step cap \\
+3 & 0.88, 0.78, 0.82 (1 rewrite) & 1.00 valid / 1.00 test & 100-step cap \\
 \bottomrule
 \end{tabular}
 \caption{The three runs. Honest rewrites were self-consistency voting over
@@ -231,10 +240,8 @@ same situation with higher stakes.
 \subsection{What remains, and risks}
 
 \textbf{Remaining work (weeks 8--10).} (i) Build the US-equity Qlib dataset
-and the sealed evaluator process with the acceptance rule (about one week;
-this is the project's core contribution and the longest item). (ii) Run the
-frozen R\&D-Agent(Q) baseline on that data (two to three days, mostly
-installation and data-format work). (iii) Point G\"odel Agent's solver at the
+and the sealed evaluator process with the acceptance rule (about one week; the core contribution). (ii) Run the
+frozen R\&D-Agent(Q) baseline on that data (two to three days). (iii) Point G\"odel Agent's solver at the
 evaluator and run the self-modifying and non-self-modifying variants at a
 matched budget. (iv) Audit edits and write up.
 
@@ -245,16 +252,16 @@ post-cutoff test window, hence the custom dataset. API cost is manageable at
 a few dollars per G\"odel run, but the quant loop multiplies LLM calls by
 backtests; DeepSeek will be used for development and o3 for final runs. A
 weaker planner may self-modify less successfully, which is itself a reportable
-result. Finally, the midpoint deadline forced the substrate work to precede the
-domain work; the schedule above is tight but each item is scoped.
+result. The schedule is tight but each item is scoped.
 
 \subsubsection*{AI-Use Disclosure Statement}
 
 \textbf{Ideation.} The project direction is the author's. Claude (Anthropic)
 helped reframe the research questions around the evaluator-exploitation
-finding after the proposal feedback. \textbf{Writing.} This report was
-drafted with Claude from the author's notes, run logs and repository, and
-revised by the author, who takes full responsibility for its content.
+finding after the proposal feedback. \textbf{Writing.} The initial
+draft of the report was written with Claude's help using the author's notes,
+run logs and repository. The final report was written by the author, who
+takes full responsibility for its content.
 \textbf{Code and experiments.} Claude Code was used to set up the conda
 environment, diagnose and patch the two issues in Section~3.2, write the log
 summariser and README, and analyse the run logs; the runs themselves use
