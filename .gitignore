@@ -30,3 +30,7 @@ report/**/*.out
 report/**/*.bbl
 report/**/*.blg
 report/**/*.synctex.gz
+
+# LibreOffice / Office lock files
+.~lock.*#
+~$*
