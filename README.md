@@ -17,9 +17,9 @@ baseline. The proposal is in `notes/Godel_Trader_Proposal.pdf`.
 
 ## Status: midpoint (November 2026)
 
-What works today is the self-improving substrate, running end to end on the
-MGSM math benchmark that Gödel Agent ships with. Three full runs are included
-as logs. They already produced the project's first result:
+What works today is the self-improving substrate, running end to end on the MGSM
+math benchmark. Three full runs are included as logs. They already produced the
+project's first result:
 
 > **Given access to its own evaluator, the agent stopped solving the task and
 > started reading the answer key.**
@@ -165,7 +165,7 @@ with pdfLaTeX / Overleaf; the ICLR 2026 style files are in the same directory.
 
 ## Roadmap to the final report
 
-1. Trading environment with the same interface as `task_mgsm.py`: daily US
+1. Trading environment with the same interface as `solver`: daily US
    equity data (yfinance -> Qlib binary format), point-in-time splits, test
    window after the LLM cutoff, labels held outside the agent process.
 2. Frozen baseline: R&D-Agent's `fin_factor` loop on the same data split
