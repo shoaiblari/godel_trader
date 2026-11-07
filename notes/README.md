@@ -1,8 +1,5 @@
 The notes directory contains the following.
 
-  Describes the capabilites of my hardware and software
-
-
 - resources.txt
   Links to important resources for the project. In particular it has
   links to the RDAgent's latest documentation and the course
