@@ -1,6 +1,5 @@
 The notes directory contains the following.
 
-- my_system.txt (local only, not committed)
   Describes the capabilites of my hardware and software
 
 
