@@ -34,3 +34,6 @@ report/**/*.synctex.gz
 # LibreOffice / Office lock files
 .~lock.*#
 ~$*
+
+# private machine details, local only
+notes/my_system.txt
